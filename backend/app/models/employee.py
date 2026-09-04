@@ -46,7 +46,7 @@ class Employee(Document):
     class Settings:
         name = "employees"
         indexes = [
-            [("email", 1), ("unique", True)],
+            [("email", 1)],
             [("department", 1), ("status", 1)],
         ]
 

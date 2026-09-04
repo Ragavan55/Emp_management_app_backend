@@ -75,3 +75,16 @@ class PaginatedEmployeeResponse(BaseModel):
     page: int
     limit: int
     total_pages: int
+
+
+class EmployeeBreakdown(BaseModel):
+    name: str
+    count: int
+
+
+class EmployeeSummaryResponse(BaseModel):
+    total: int
+    active: int
+    inactive: int
+    departments: list[EmployeeBreakdown]
+    designations: list[EmployeeBreakdown]

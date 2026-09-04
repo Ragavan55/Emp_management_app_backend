@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from app.core.security import create_access_token, verify_password
 from app.dependencies import get_current_user
@@ -15,13 +15,21 @@ router = APIRouter(prefix="/auth", tags=["auth"])
     description="Authenticates a user with email and password and returns a JWT access token.",
     status_code=status.HTTP_200_OK,
 )
-async def login(payload: LoginRequest) -> TokenResponse:
+async def login(payload: LoginRequest, response: Response) -> TokenResponse:
     user = await User.find_one(User.email == payload.email)
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
     token = create_access_token(user.email)
+    # set a cookie so Next.js middleware can detect authenticated requests
+    # HttpOnly cookie is used for security; client keeps localStorage copy too
+    response.set_cookie("token", token, httponly=True, secure=True, samesite="none")
     return TokenResponse(access_token=token, token_type="bearer")
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, summary="Logout")
+async def logout(response: Response) -> None:
+    response.delete_cookie("token")
 
 
 @router.get(

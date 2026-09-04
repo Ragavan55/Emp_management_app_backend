@@ -9,7 +9,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.dependencies import get_current_user
 from app.models.employee import Employee
 from app.models.user import User
-from app.schemas.employee import EmployeeCreate, EmployeeRead, EmployeeUpdate, PaginatedEmployeeResponse
+from app.schemas.employee import (
+    EmployeeCreate,
+    EmployeeRead,
+    EmployeeSummaryResponse,
+    EmployeeUpdate,
+    PaginatedEmployeeResponse,
+)
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 
@@ -33,8 +39,8 @@ async def list_employees(
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
     search: str | None = None,
-    department: str | None = None,
-    status: str | None = None,
+    department: list[str] | None = Query(None),
+    status: list[str] | None = Query(None),
     current_user: User = Depends(get_current_user),
 ) -> PaginatedEmployeeResponse:
     query: dict = {}
@@ -44,9 +50,9 @@ async def list_employees(
             {"email": {"$regex": re.escape(search), "$options": "i"}},
         ]
     if department:
-        query["department"] = department
+        query["department"] = {"$in": department}
     if status:
-        query["status"] = status
+        query["status"] = {"$in": status}
 
     total = await Employee.find(query).count()
     skip = (page - 1) * limit
@@ -64,14 +70,30 @@ async def list_employees(
 
 @router.get(
     "/stats/summary",
+    response_model=EmployeeSummaryResponse,
     summary="Employee summary stats",
     description="Returns counts for total, active, and inactive employees.",
 )
-async def employee_summary(current_user: User = Depends(get_current_user)) -> dict[str, int]:
+async def employee_summary(current_user: User = Depends(get_current_user)) -> EmployeeSummaryResponse:
     total = await Employee.find().count()
     active = await Employee.find(Employee.status == "Active").count()
     inactive = await Employee.find(Employee.status == "Inactive").count()
-    return {"total": total, "active": active, "inactive": inactive}
+    collection = Employee.get_motor_collection()
+    department_rows = await collection.aggregate([
+        {"$group": {"_id": "$department", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1, "_id": 1}},
+    ]).to_list(length=None)
+    designation_rows = await collection.aggregate([
+        {"$group": {"_id": "$designation", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1, "_id": 1}},
+    ]).to_list(length=None)
+    return EmployeeSummaryResponse(
+        total=total,
+        active=active,
+        inactive=inactive,
+        departments=[{"name": row["_id"], "count": row["count"]} for row in department_rows],
+        designations=[{"name": row["_id"], "count": row["count"]} for row in designation_rows],
+    )
 
 
 @router.get(

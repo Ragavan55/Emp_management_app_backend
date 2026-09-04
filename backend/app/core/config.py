@@ -17,13 +17,15 @@ class Settings(BaseSettings):
     secret_key: str = Field(..., alias="SECRET_KEY")
     jwt_algorithm: str = Field("HS256", alias="JWT_ALGORITHM")
     access_token_expire_minutes: int = Field(90, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
-    cors_origins: str = Field("http://localhost:3000", alias="CORS_ORIGINS")
+    cors_origins: str = Field("https://emp-management-app-frontend.vercel.app", alias="CORS_ORIGINS")
     seed_admin_email: str = Field(..., alias="SEED_ADMIN_EMAIL")
     seed_admin_password: str = Field(..., alias="SEED_ADMIN_PASSWORD")
 
     @property
     def cors_origins_list(self) -> list[str]:
-        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        configured_origins = [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        deployed_frontend = "https://emp-management-app-frontend.vercel.app"
+        return list(dict.fromkeys([*configured_origins, deployed_frontend]))
 
 
 settings = Settings()
