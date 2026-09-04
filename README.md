@@ -1,100 +1,144 @@
-# Backend API
+# Mini Employee Management System
 
-FastAPI service for authentication and employee management. It uses MongoDB through Motor and Beanie, validates requests with Pydantic, and protects employee data with expiring JWT Bearer tokens.
+## Overview
 
-## Setup
+This project is a full-stack employee management application with a FastAPI backend, a Next.js frontend, and MongoDB Atlas persistence. It includes authentication, employee CRUD, filtering, pagination, dashboard summaries, and a user-friendly admin interface.
 
-From PowerShell:
+## Tech stack
 
-```powershell
-cd backend
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-Copy-Item .env.example .env
-```
+- Frontend: Next.js 16, React 19, Tailwind CSS
+- Backend: FastAPI, Python 3.13, Pydantic, Beanie Motor
+- Database: MongoDB Atlas
+- Auth: JWT + bcrypt password hashing
+- Version control: Git
 
-Fill in `.env` with `MONGODB_URL`, `SECRET_KEY`, `SEED_ADMIN_EMAIL`, and `SEED_ADMIN_PASSWORD`. Optional values are `DATABASE_NAME`, `JWT_ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`, and `CORS_ORIGINS`; see `.env.example` for defaults.
+## Features implemented
 
-The MongoDB user must have access to the database, and the development machine must be allowed by the Atlas network rules. Initialize the admin account and run the service:
+- JWT-based admin login
+- Protected employee routes
+- Employee create, read, update, delete
+- Search and filtering with pagination
+- Dashboard summary cards
+- MongoDB indexing and validation
+- CORS and global error handling
 
-```powershell
-python scripts\seed_user.py
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
+## Local setup
 
-Verify the service at `http://localhost:8000/health`. OpenAPI UI is at `/docs`, and ReDoc is at `/redoc`.
+### Backend
 
-## Request flow
+1. Open a terminal in `backend/`.
+2. Create a virtual environment:
+   ```bash
+   python -m venv .venv
+   . .venv/bin/activate
+   ```
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Copy `.env.example` to `.env` and update the values.
+5. Seed the admin account:
+   ```bash
+   python scripts/seed_user.py
+   ```
+6. Start the API:
+   ```bash
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   ```
 
-`POST /auth/login` finds the user by email, verifies the PBKDF2-SHA256 password hash, creates a JWT containing `sub` and `exp`, returns the token, and sets an HttpOnly `token` cookie. Protected routes use the `Authorization: Bearer <token>` header. `get_current_user` decodes the token and loads the user from MongoDB before the route runs.
+### Frontend
 
-The FastAPI lifespan calls `init_db()` at startup. Beanie registers the `User` and `Employee` document models and uses the `users` and `employees` collections.
+1. Open a terminal in `frontend/`.
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Copy `.env.local.example` to `.env.local` and set the API URL.
+4. Start the app:
+   ```bash
+   npm run dev
+   ```
+5. Open http://localhost:3000
 
-## Endpoints
+## Environment variables reference
+
+### Backend
+
+- `MONGODB_URL`
+- `DATABASE_NAME`
+- `SECRET_KEY`
+- `JWT_ALGORITHM`
+- `ACCESS_TOKEN_EXPIRE_MINUTES`
+- `CORS_ORIGINS`
+- `SEED_ADMIN_EMAIL`
+- `SEED_ADMIN_PASSWORD`
+
+### Frontend
+
+- `NEXT_PUBLIC_API_BASE_URL`
+
+## Project structure
+
+- `backend/` — FastAPI app, MongoDB access, auth, employee APIs
+- `frontend/` — Next.js app, dashboard, list pages, forms, route protection
+- `README.md` — setup and API documentation
+
+## API documentation
+
+The API is documented through FastAPI Swagger at `/docs` on the backend.
+
+### Auth endpoints
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| GET | `/health` | No | Health check |
-| POST | `/auth/login` | No | Login and receive JWT |
-| POST | `/auth/logout` | No | Delete auth cookie |
-| GET | `/auth/me` | Yes | Current user email and username |
-| GET | `/employees` | Yes | Search, filter, sort, and paginate |
-| GET | `/employees/stats/summary` | Yes | Totals and grouped breakdowns |
-| GET | `/employees/{id}` | Yes | Read one employee |
-| POST | `/employees` | Yes | Create employee |
-| PUT | `/employees/{id}` | Yes | Update employee |
-| DELETE | `/employees/{id}` | Yes | Delete employee |
+| POST | `/auth/login` | No | Email/password login; returns JWT |
 
-List query parameters are `page` (default `1`), `limit` (default `10`, maximum `100`), `search`, repeated `department`, and repeated `status`. Search is case-insensitive against name and email. Status values are `Active` and `Inactive`.
+### Employee endpoints
 
-Example create/update body:
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| GET | `/employees` | Yes | List employees with search, filters, pagination |
+| GET | `/employees/{id}` | Yes | Retrieve a single employee |
+| POST | `/employees` | Yes | Create an employee |
+| PUT | `/employees/{id}` | Yes | Update an employee |
+| DELETE | `/employees/{id}` | Yes | Delete an employee |
+| GET | `/employees/stats/summary` | Yes | Returns totals by status |
+| GET | `/health` | No | Basic API uptime check |
+
+Query parameters for list route:
+
+- `page` (default `1`)
+- `limit` (default `10`)
+- `search` (partial match on name or email)
+- `department` (exact match)
+- `status` (exact match: `Active` or `Inactive`)
+
+Response for list route:
 
 ```json
 {
-  "name": "Jane Doe",
-  "email": "jane@example.com",
-  "phone": "9876543210",
-  "department": "Engineering",
-  "designation": "Senior Developer",
-  "joining_date": "2024-01-15",
-  "status": "Active"
+  "items": [],
+  "total": 47,
+  "page": 1,
+  "limit": 10,
+  "total_pages": 5
 }
 ```
 
-The list response contains `items`, `total`, `page`, `limit`, and `total_pages`. Employee responses also include the MongoDB string `id`, `created_at`, and `updated_at`.
+## Database setup
 
-## Validation and errors
+- MongoDB Atlas cluster hosts the database.
+- Collections used: `employees` and `users`.
+- Indexes include a unique email index on both documents and supporting indexes for department/status filtering.
 
-- Email must be valid.
-- Name, department, and designation cannot be blank.
-- Phone must contain 10 to 15 digits, optionally preceded by `+` at the document-model level.
-- Joining date cannot be in the future.
-- Invalid payloads or IDs return `422`.
-- Missing, invalid, or expired tokens return `401`.
-- Missing records return `404`.
-- Persistence conflicts, including duplicate email errors, return `409`.
+## Deployment details
 
-## Files and utilities
+- Frontend: deploy on Vercel or any Node hosting that supports Next.js.
+- Backend: deploy on Render, Railway, or any Python/FastAPI host.
+- Database: MongoDB Atlas cluster.
+- Required deployment env configuration: update `CORS_ORIGINS`, `MONGODB_URL`, `SECRET_KEY`, and frontend `NEXT_PUBLIC_API_BASE_URL`.
 
-- `app/main.py`: application, CORS, startup initialization, and health endpoint.
-- `app/routers/auth.py`: login, logout, and current-user routes.
-- `app/routers/employees.py`: employee CRUD, filtering, pagination, and aggregation.
-- `app/core/security.py`: password and JWT helpers.
-- `app/dependencies.py`: Bearer-token dependency.
-- `app/models/`: MongoDB documents and validation.
-- `app/schemas/`: API request/response schemas.
-- `scripts/seed_user.py`: creates the configured admin user if absent.
-- `scripts/create_user_cli.py`: interactively creates a user.
-- `scripts/create_user_noninteractive.py`: creates a user from command-line arguments.
-- `check_db.py`: verifies database initialization.
+## Known limitations
 
-## Commands
-
-```powershell
-python check_db.py
-python scripts\create_user_cli.py
-python scripts\create_user_noninteractive.py user@example.com password username
-```
-
-For MongoDB TLS failures, first check the Atlas connection, allowlist, credentials, and Windows clock. The development fallback in `app/db.py` disables TLS certificate verification and must not be used for production.
+- The assignment is implemented as a working local demo with JWT auth and CRUD flows.
+- Cookie-based auth would be a stronger production option; this version uses token storage in the browser for simplicity and notes the tradeoff.
