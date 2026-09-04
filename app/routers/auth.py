@@ -23,7 +23,7 @@ async def login(payload: LoginRequest, response: Response) -> TokenResponse:
     token = create_access_token(user.email)
     # set a cookie so Next.js middleware can detect authenticated requests
     # HttpOnly cookie is used for security; client keeps localStorage copy too
-    response.set_cookie("token", token, httponly=True, secure=False, samesite="lax")
+    response.set_cookie("token", token, httponly=True, secure=True, samesite="none")
     return TokenResponse(access_token=token, token_type="bearer")
 
 
