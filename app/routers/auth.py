@@ -1,11 +1,38 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
-from app.core.security import create_access_token, verify_password
+from app.core.security import create_access_token, hash_password, verify_password
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.auth import LoginRequest, TokenResponse
+from app.schemas.auth import LoginRequest, SignupRequest, TokenResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@router.post("/signup", status_code=status.HTTP_201_CREATED, summary="Create user")
+async def signup(payload: SignupRequest) -> dict[str, str]:
+    if payload.password != payload.confirm_password:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Passwords do not match")
+
+    existing = await User.find_one(User.email == payload.email)
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A user with this email already exists")
+
+    username = (payload.name or "").strip() or payload.email.split("@", 1)[0]
+    if len(username) < 3:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Name or email username must be at least 3 characters")
+
+    now = datetime.utcnow()
+    user = User(
+        username=username,
+        email=payload.email,
+        hashed_password=hash_password(payload.password),
+        created_at=now,
+        updated_at=now,
+    )
+    await user.insert()
+    return {"message": "User created successfully", "email": str(user.email)}
 
 
 @router.post(
