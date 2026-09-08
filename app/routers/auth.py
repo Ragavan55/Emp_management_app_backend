@@ -17,7 +17,10 @@ async def signup(payload: SignupRequest) -> dict[str, str]:
 
     existing = await User.find_one(User.email == payload.email)
     if existing:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A user with this email already exists")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A user with the same email already exists. Please use a different email.",
+        )
 
     username = (payload.name or "").strip() or payload.email.split("@", 1)[0]
     if len(username) < 3:
